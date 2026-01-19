@@ -16,10 +16,11 @@ load_dotenv()
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# MongoDB configuration (reusing existing collection)
-DB_NAME = "rag_playbook"
-COLLECTION_NAME = "metadata_filtered_rag"  # or "naive_rag"
-INDEX_NAME = "metadata_filtered_index"  # or "naive"
+# MongoDB configuration
+DB_NAME = "sc_dev_docs"
+COLLECTION_NAME = "dev_docs"
+INDEX_NAME = "docs"
+
 
 # LLM Configuration
 MODEL_NAME = "gpt-4o-mini"
@@ -31,7 +32,7 @@ DEFAULT_BM25_WEIGHT = 0.5
 DEFAULT_VECTOR_WEIGHT = 0.5
 RRF_K = 60
 
-RAG_PROMPT_TEMPLATE = """You are a helpful engineering onboarding assistant that answers questions based on developer documentation in Confluence.
+RAG_PROMPT_TEMPLATE = """You are a helpful engineering onboarding assistant that answers questions based on developer documentation from Confluence.
 
 Search Method: Hybrid (combining keyword and semantic search)
 
@@ -71,14 +72,11 @@ def load_documents_for_bm25() -> list[Document]:
 
             metadata = {
                 "source_file": doc.get("source_file", "Unknown"),
-                "year": doc.get("year", 0),
                 "page": doc.get("page", 0),
             }
 
             if "topic_buckets" in doc:
                 metadata["topic_buckets"] = doc["topic_buckets"]
-            if "companies_mentioned" in doc:
-                metadata["companies_mentioned"] = doc["companies_mentioned"]
 
             documents.append(Document(
                 page_content=text,
@@ -96,7 +94,6 @@ def reciprocal_rank_fusion(
     weights: list[float],
     k: int = RRF_K
 ) -> list[Document]:
-    """Combine ranked lists using Reciprocal Rank Fusion."""
     total_weight = sum(weights)
     weights = [w / total_weight for w in weights]
 
@@ -123,7 +120,6 @@ def hybrid_search(
     bm25_weight: float = DEFAULT_BM25_WEIGHT,
     vector_weight: float = DEFAULT_VECTOR_WEIGHT,
 ) -> list[Document]:
-    """Perform hybrid search combining BM25 and vector search."""
     documents = load_documents_for_bm25()
 
     if not documents:
@@ -167,12 +163,11 @@ def format_context(documents: list) -> str:
     parts = []
     for i, doc in enumerate(documents, 1):
         source = doc.metadata.get("source_file", "Unknown")
-        year = doc.metadata.get("year", "Unknown")
         page = doc.metadata.get("page", "Unknown")
 
         parts.append(
             f"[Document {i}]\n"
-            f"Source: {source} (Year: {year}, Page: {page})\n"
+            f"Source: {source}, Page: {page})\n"
             f"Content:\n{doc.page_content}\n"
         )
     return "\n---\n".join(parts)
@@ -198,7 +193,6 @@ def generate_answer(
     vector_weight: float = DEFAULT_VECTOR_WEIGHT,
     verbose: bool = False,
 ) -> dict:
-    """Generate an answer using hybrid RAG."""
     documents = hybrid_search(
         query=question,
         k=top_k,
@@ -225,7 +219,6 @@ def generate_answer(
         "sources": [
             {
                 "file": doc.metadata.get("source_file", "Unknown"),
-                "year": doc.metadata.get("year", "Unknown"),
                 "page": doc.metadata.get("page", "Unknown"),
             }
             for doc in documents
@@ -300,7 +293,7 @@ def interactive_mode():
 
             print(f"\n📚 Sources ({len(result['sources'])} documents):")
             for s in result["sources"]:
-                print(f"  • {s['file']} (Year: {s['year']}, Page: {s['page']})")
+                print(f"  • {s['file']}, Page: {s['page']})")
 
             print(f"\n🔀 {result['search_method']}")
 
@@ -321,15 +314,15 @@ def main():
 
     examples = [
         {
-            "question": "What is GEICO and how does it contribute to Berkshire?",
-            "note": "BM25 helps with 'GEICO' exact match"
+            "question": "How can I perform barcode scanning on an emulated Android device?",
+            "note": "BM25 helps with exact match"
         },
         {
-            "question": "What makes a great long-term investment?",
+            "question": "Why are code standards important in the ServiceCore fron",
             "note": "Vector helps with semantic meaning"
         },
         {
-            "question": "Berkshire float insurance 2015",
+            "question": "SC Laravel Migration",
             "note": "Hybrid combines terms + meaning"
         },
     ]
@@ -360,7 +353,7 @@ def main():
 
         print(f"\n📚 Sources:")
         for s in result["sources"]:
-            print(f"  • {s['file']} (Year: {s['year']})")
+            print(f"  • {s['file']}")
     elif choice:
         print(f"\n📝 Question: {choice}")
         print("\n🔀 Retrieving with hybrid search...")
@@ -374,7 +367,7 @@ def main():
 
         print(f"\n📚 Sources:")
         for s in result["sources"]:
-            print(f"  • {s['file']} (Year: {s['year']})")
+            print(f"  • {s['file']}")
     else:
         print("\n👋 No input. Run again to try!")
 

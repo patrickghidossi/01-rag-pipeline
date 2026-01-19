@@ -57,7 +57,6 @@ def load_and_chunk_pdfs(pdf_files: list[Path]) -> list:
             # Add source metadata
             for doc in documents:
                 doc.metadata["source_file"] = pdf_path.name
-                doc.metadata["year"] = pdf_path.stem.replace("ltr", "")
 
             # Split documents into chunks
             chunks = text_splitter.split_documents(documents)
@@ -142,7 +141,7 @@ After creating the index, wait for it to become "Active" before running queries.
 def main():
     """Main ingestion pipeline."""
     print("=" * 50)
-    print("Naive RAG - Ingestion Pipeline")
+    print("Dev Docs - Ingestion Pipeline")
     print("=" * 50)
 
     # Validate environment
@@ -153,16 +152,16 @@ def main():
 
     # Get path to letters directory (relative to this script)
     script_dir = Path(__file__).parent
-    letters_dir = script_dir.parent / "letters"
+    docs_dir = script_dir.parent / "docs"
 
-    if not letters_dir.exists():
-        raise FileNotFoundError(f"Letters directory not found: {letters_dir}")
+    if not docs_dir.exists():
+        raise FileNotFoundError(f"Docs directory not found: {docs_dir}")
 
     # Step 1: Get PDF files
-    pdf_files = get_pdf_files(letters_dir)
+    pdf_files = get_pdf_files(docs_dir=)
 
     if not pdf_files:
-        raise ValueError("No PDF files found in letters directory")
+        raise ValueError("No PDF files found in docs directory")
 
     # Step 2: Load and chunk PDFs
     documents = load_and_chunk_pdfs(pdf_files)

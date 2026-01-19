@@ -22,10 +22,10 @@ load_dotenv()
 MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# MongoDB configuration - Choose which collection to use
-DB_NAME = "rag_playbook"
-COLLECTION_NAME = "naive_rag"
-INDEX_NAME = "naive"
+# MongoDB configuration
+DB_NAME = "sc_dev_docs"
+COLLECTION_NAME = "dev_docs"
+INDEX_NAME = "docs"
 
 # Hybrid search configuration
 DEFAULT_TOP_K = 5
@@ -81,17 +81,12 @@ def load_documents_for_bm25(limit: Optional[int] = None) -> list[Document]:
 
             metadata = {
                 "source_file": doc.get("source_file", "Unknown"),
-                "year": doc.get("year", 0),
                 "page": doc.get("page", 0),
-                "_id": str(doc.get("_id", "")),  # For deduplication
+                "_id": str(doc.get("_id", "")),  # dedup
             }
 
             if "topic_buckets" in doc:
                 metadata["topic_buckets"] = doc["topic_buckets"]
-            if "companies_mentioned" in doc:
-                metadata["companies_mentioned"] = doc["companies_mentioned"]
-            if "decade" in doc:
-                metadata["decade"] = doc["decade"]
 
             documents.append(Document(
                 page_content=text,
@@ -262,12 +257,11 @@ def format_retrieved_context(documents: list) -> str:
 
     for i, doc in enumerate(documents, 1):
         source = doc.metadata.get("source_file", "Unknown")
-        year = doc.metadata.get("year", "Unknown")
         page = doc.metadata.get("page", "Unknown")
 
         context_parts.append(
             f"[Document {i}]\n"
-            f"Source: {source} (Year: {year}, Page: {page})\n"
+            f"Source: {source}, Page: {page})\n"
             f"Content:\n{doc.page_content}\n"
         )
 
@@ -301,10 +295,6 @@ def debug_collection():
 def main():
     """Test hybrid retrieval and compare with individual methods."""
     print("=" * 60)
-    print("Hybrid Search RAG - Retrieval Test")
-    print("=" * 60)
-    print("\n📌 NOTE: No ingestion required!")
-    print(f"   Using existing collection: {DB_NAME}.{COLLECTION_NAME}")
 
     # Validate environment
     if not MONGO_DB_URL:
@@ -320,15 +310,15 @@ def main():
     # Test queries
     test_queries = [
         {
-            "query": "GEICO insurance operations",
-            "expected_strength": "BM25 (specific company name)",
+            "query": "How can I perform barcode scanning on an emulated Android device?",
+            "expected_strength": "BM25 (specific practice)",
         },
         {
-            "query": "What makes a good long-term investment?",
+            "query": "Why are code standards important in the ServiceCore frontend?",
             "expected_strength": "Vector (semantic understanding)",
         },
         {
-            "query": "Berkshire Hathaway float 2020",
+            "query": "SC Laravel Migration",
             "expected_strength": "Hybrid (terms + meaning)",
         },
     ]
