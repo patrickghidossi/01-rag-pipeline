@@ -7,7 +7,7 @@ import certifi
 from pathlib import Path
 from dotenv import load_dotenv
 
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
@@ -51,7 +51,7 @@ def load_and_chunk_pdfs(pdf_files: list[Path]) -> list:
     for pdf_path in pdf_files:
         print(f"Processing: {pdf_path.name}")
         try:
-            loader = PyPDFLoader(str(pdf_path))
+            loader = PyMuPDFLoader(str(pdf_path))
             documents = loader.load()
 
             # Add source metadata
@@ -89,6 +89,9 @@ def setup_mongodb_collection():
 
 def create_vector_store(collection, documents: list):
     """Create embeddings and store in MongoDB Atlas Vector Search."""
+    if not documents:
+        raise ValueError("create_vector_store called with empty documents list")
+    
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small",
         openai_api_key=OPENAI_API_KEY
@@ -150,15 +153,13 @@ def main():
     if not OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY environment variable not set")
 
-    # Get path to letters directory (relative to this script)
-    script_dir = Path(__file__).parent
-    docs_dir = script_dir.parent / "docs"
+    docs_dir = Path(__file__).resolve().parent / "docs"
 
     if not docs_dir.exists():
         raise FileNotFoundError(f"Docs directory not found: {docs_dir}")
 
     # Step 1: Get PDF files
-    pdf_files = get_pdf_files(docs_dir=)
+    pdf_files = get_pdf_files(docs_dir)
 
     if not pdf_files:
         raise ValueError("No PDF files found in docs directory")
@@ -166,13 +167,15 @@ def main():
     # Step 2: Load and chunk PDFs
     documents = load_and_chunk_pdfs(pdf_files)
 
+    if not documents:
+        raise ValueError("No document chunks produced by load_and_chunk_pdfs; check your PDFs and chunking settings")
     # Step 3: Setup MongoDB
     client, collection = setup_mongodb_collection()
 
     try:
         # Step 4: Create embeddings and store in vector database
         vector_store = create_vector_store(collection, documents)
-
+    
         print("\n✅ Ingestion complete!")
         print(f"   Database: {DB_NAME}")
         print(f"   Collection: {COLLECTION_NAME}")
