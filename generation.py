@@ -119,14 +119,31 @@ def hybrid_search(
     k: int = TOP_K,
     bm25_weight: float = DEFAULT_BM25_WEIGHT,
     vector_weight: float = DEFAULT_VECTOR_WEIGHT,
+    topic_filter: str = None,
 ) -> list[Document]:
+    """
+    Perform hybrid search with optional topic filtering.
+
+    Args:
+        topic_filter: Filter by topic (e.g., "backend", "frontend", "testing")
+    """
     documents = load_documents_for_bm25()
 
     if not documents:
         raise ValueError("No documents found. Run ingestion first!")
 
+    # Apply topic filter to BM25 documents if specified
+    bm25_docs = documents
+    if topic_filter:
+        filtered = [
+            doc for doc in documents
+            if topic_filter.lower() in [t.lower() for t in doc.metadata.get("topic_buckets", [])]
+        ]
+        if filtered:
+            bm25_docs = filtered
+
     # BM25 search
-    bm25_retriever = BM25Retriever.from_documents(documents, k=k * 3)
+    bm25_retriever = BM25Retriever.from_documents(bm25_docs, k=k * 3)
     bm25_results = bm25_retriever.invoke(query)
 
     # Vector search
@@ -145,7 +162,18 @@ def hybrid_search(
     )
 
     try:
-        vector_results = vector_store.similarity_search(query=query, k=k * 3)
+        if topic_filter:
+            # Use pre_filter for MongoDB Atlas vector search
+            vector_results = vector_store.similarity_search(
+                query=query,
+                k=k * 3,
+                pre_filter={"topic_buckets": topic_filter}
+            )
+            # Fall back to unfiltered if no results
+            if not vector_results:
+                vector_results = vector_store.similarity_search(query=query, k=k * 3)
+        else:
+            vector_results = vector_store.similarity_search(query=query, k=k * 3)
     finally:
         client.close()
 
@@ -191,13 +219,15 @@ def generate_answer(
     top_k: int = TOP_K,
     bm25_weight: float = DEFAULT_BM25_WEIGHT,
     vector_weight: float = DEFAULT_VECTOR_WEIGHT,
+    topic_filter: str = None,
     verbose: bool = False,
 ) -> dict:
     documents = hybrid_search(
         query=question,
         k=top_k,
         bm25_weight=bm25_weight,
-        vector_weight=vector_weight
+        vector_weight=vector_weight,
+        topic_filter=topic_filter,
     )
 
     if not documents:
@@ -214,6 +244,10 @@ def generate_answer(
         "question": question
     })
 
+    search_method = f"Hybrid (BM25: {bm25_weight}, Vector: {vector_weight})"
+    if topic_filter:
+        search_method += f", Topic: {topic_filter}"
+
     response = {
         "answer": answer,
         "sources": [
@@ -223,7 +257,7 @@ def generate_answer(
             }
             for doc in documents
         ],
-        "search_method": f"Hybrid (BM25: {bm25_weight}, Vector: {vector_weight})"
+        "search_method": search_method,
     }
 
     if verbose:
@@ -244,6 +278,8 @@ def interactive_mode():
     print(f"   Collection: {DB_NAME}.{COLLECTION_NAME}")
     print("\nCommands:")
     print("  weights:0.7,0.3    - Set BM25/Vector weights")
+    print("  topic:backend      - Filter by topic (backend, frontend, testing, api, etc.)")
+    print("  topic:clear        - Clear topic filter")
     print("  quit               - Exit")
     print("-" * 60)
 
@@ -251,12 +287,23 @@ def interactive_mode():
     docs = load_documents_for_bm25()
     print(f"   Loaded {len(docs)} documents")
 
+    # Show available topics
+    all_topics = set()
+    for doc in docs:
+        all_topics.update(doc.metadata.get("topic_buckets", []))
+    if all_topics:
+        print(f"   Available topics: {', '.join(sorted(all_topics))}")
+
     bm25_weight = DEFAULT_BM25_WEIGHT
     vector_weight = DEFAULT_VECTOR_WEIGHT
+    topic_filter = None
 
     while True:
         print()
-        print(f"⚖️  Current weights: BM25={bm25_weight}, Vector={vector_weight}")
+        status = f"⚖️  Weights: BM25={bm25_weight}, Vector={vector_weight}"
+        if topic_filter:
+            status += f" | 🏷️  Topic: {topic_filter}"
+        print(status)
         user_input = input(">> ").strip()
 
         if not user_input:
@@ -276,6 +323,16 @@ def interactive_mode():
                 print("❌ Invalid format. Use 'weights:0.7,0.3'")
             continue
 
+        if user_input.startswith('topic:'):
+            topic_value = user_input.split(':')[1].strip()
+            if topic_value.lower() == 'clear':
+                topic_filter = None
+                print("✅ Topic filter cleared")
+            else:
+                topic_filter = topic_value
+                print(f"✅ Topic filter set: {topic_filter}")
+            continue
+
         print("\n🔀 Searching with hybrid retrieval...")
         print("🤖 Generating answer...\n")
 
@@ -283,7 +340,8 @@ def interactive_mode():
             result = generate_answer(
                 user_input,
                 bm25_weight=bm25_weight,
-                vector_weight=vector_weight
+                vector_weight=vector_weight,
+                topic_filter=topic_filter,
             )
 
             print("-" * 50)

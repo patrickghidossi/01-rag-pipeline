@@ -8,7 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from langchain_community.document_loaders import PyMuPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_experimental.text_splitter import SemanticChunker
 from langchain_openai import OpenAIEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from pymongo import MongoClient
@@ -25,9 +25,10 @@ DB_NAME = "sc_dev_docs"
 COLLECTION_NAME = "dev_docs"
 INDEX_NAME = "docs"
 
-# Chunking configuration
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+# Semantic chunking configuration
+# breakpoint_threshold_type options: "percentile", "standard_deviation", "interquartile"
+BREAKPOINT_THRESHOLD_TYPE = "percentile"
+BREAKPOINT_THRESHOLD_AMOUNT = 95  # Higher = fewer, larger chunks
 
 
 def get_pdf_files(docs_dir: str) -> list[Path]:
@@ -38,14 +39,20 @@ def get_pdf_files(docs_dir: str) -> list[Path]:
 
 
 def load_and_chunk_pdfs(pdf_files: list[Path]) -> list:
-    """Load PDFs and split into chunks."""
+    """Load PDFs and split into semantic chunks based on embedding similarity."""
     all_documents = []
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        length_function=len,
-        separators=["\n\n", "\n", " ", ""]
+    # Initialize embeddings for semantic chunking
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=OPENAI_API_KEY
+    )
+
+    # Semantic chunker splits based on embedding similarity between sentences
+    text_splitter = SemanticChunker(
+        embeddings=embeddings,
+        breakpoint_threshold_type=BREAKPOINT_THRESHOLD_TYPE,
+        breakpoint_threshold_amount=BREAKPOINT_THRESHOLD_AMOUNT,
     )
 
     for pdf_path in pdf_files:
@@ -58,15 +65,15 @@ def load_and_chunk_pdfs(pdf_files: list[Path]) -> list:
             for doc in documents:
                 doc.metadata["source_file"] = pdf_path.name
 
-            # Split documents into chunks
+            # Split documents into semantic chunks
             chunks = text_splitter.split_documents(documents)
             all_documents.extend(chunks)
-            print(f"  -> Created {len(chunks)} chunks")
+            print(f"  -> Created {len(chunks)} semantic chunks")
 
         except Exception as e:
             print(f"  -> Error processing {pdf_path.name}: {e}")
 
-    print(f"\nTotal chunks created: {len(all_documents)}")
+    print(f"\nTotal semantic chunks created: {len(all_documents)}")
     return all_documents
 
 
