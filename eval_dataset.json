@@ -1,0 +1,26 @@
+{
+  "test_cases": [
+    {
+      "question": "How can I perform barcode scanning on an emulated Android device?",
+      "ground_truth": "You can use the Android emulator's extended controls to simulate barcode scanning, or use a virtual camera with barcode images.",
+      "expected_sources": [
+        "SC-Barcode Scanning from Android Emulation-190126-200803.pdf"
+      ]
+    },
+    {
+      "question": "What are the coding standards for the frontend?",
+      "ground_truth": "The frontend follows specific architectural styles and coding standards documented in the Frontend Architectural Style guide.",
+      "expected_sources": [
+        "SC-Frontend Code Standards-230126-032910.pdf"
+      ]
+    },
+    {
+      "question": "How should I write tests in the ServiceCore project?",
+      "ground_truth": "Follow the testing practices guide which covers unit tests, integration tests, and test organization.",
+      "expected_sources": [
+        "SC-Unit Testing Best Practices-180126-230620.pdf",
+        "SC-Cypress Testing - Internal Best Practices-180126-230744.pdf"
+      ]
+    }
+  ]
+}

@@ -23,9 +23,9 @@ MONGO_DB_URL = os.getenv("MONGO_DB_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # MongoDB configuration
-DB_NAME = "sc_dev_docs"
-COLLECTION_NAME = "dev_docs"
-INDEX_NAME = "docs"
+DB_NAME = "sc_dev_docs_semantic"
+COLLECTION_NAME = "dev_docs_semantic"
+INDEX_NAME = "vector_index"
 
 # Hybrid search configuration
 DEFAULT_TOP_K = 5
